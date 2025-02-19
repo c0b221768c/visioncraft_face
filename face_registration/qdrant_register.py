@@ -11,7 +11,8 @@ import numpy as np
 from common.camera import Camera
 from common.detection import FaceDetector
 from common.recognition import FaceRecognition
-from common.utils import init_db, save_feature
+from common.qdrant_utils import save_feature
+from initDB import init_qdrant_collection  # ここを修正
 
 
 def register_face(
@@ -32,30 +33,29 @@ def register_face(
                 break
             continue
 
-        # 顔の領域を切り抜く
         x1, y1, x2, y2 = faces[0]
         face_crop = frame[y1:y2, x1:x2]
         feature = recognizer.extract_feature(face_crop)
         collected_features.append(feature)
 
         print(f"Registering... Collected {len(collected_features)} features")
-        if len(collected_features) >= 5:
+        if len(collected_features) >= 30:
             break
 
     camera.release()
     cv2.destroyAllWindows()
 
     if collected_features:
-        avg_feature = np.mean(collected_features, axis=0)  # 特徴量の平均をとる
-        save_feature(user_uuid, avg_feature)  # Qdrant に保存
+        avg_feature = np.mean(collected_features, axis=0)
+        save_feature(user_uuid, avg_feature)
         print(f"Success: UUID={user_uuid}")
 
 
 if __name__ == "__main__":
-    init_db()  # Qdrant のコレクションを初期化
+    init_qdrant_collection()  # 修正点: Qdrantの初期化関数を明示的に呼び出す
     camera = Camera(0, 640, 480)
     detector = FaceDetector()
     recognizer = FaceRecognition("models/face_recognition.onnx")
 
-    user_uuid = str(uuid.uuid4())  # 新規 UUID を生成
+    user_uuid = str(uuid.uuid4())
     register_face(user_uuid, camera, detector, recognizer)

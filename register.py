@@ -1,39 +1,42 @@
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import cv2
-import numpy as np
 import uuid
+import numpy as np
 from common.camera import Camera
 from common.detection import FaceDetector
 from common.recognition import FaceRecognition
-from common.utils import init_db, save_feature
+from common.utils import init_qdrant, save_feature
 
-def register_face(user_uuid, camera:Camera, detector:FaceDetector, recognizer:FaceRecognition):
-    print(f"UUID:={user_uuid}")
-
+def register_face(user_uuid, camera: Camera, detector: FaceDetector, recognizer: FaceRecognition):
+    print(f"UUID: {user_uuid}")
     collected_features = []
+
     while True:
         frame = camera.get_frame()
         if frame is None:
             continue
 
-        faces = detector.detect_face(frame)
+        faces = detector.detect_faces(frame)
         if not faces:
             cv2.imshow("Face Registration", frame)
-            if cv2.waitKey(1)&0xFF == ord("q"):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
             continue
+
         x1, y1, x2, y2 = faces[0]
         face_crop = frame[y1:y2, x1:x2]
         feature = recognizer.extract_feature(face_crop)
-        collected_features.append(feature)
 
-        print(f"Register Now... Feature Length:= {len(collected_features)}")
+        if feature is not None:
+            collected_features.append(feature)
+            print(f"Captured Feature {len(collected_features)}/5")
+
+        # 顔ボックスを描画
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.imshow("Face Registration", frame)
+
         if len(collected_features) >= 5:
             break
-    
+
     camera.release()
     cv2.destroyAllWindows()
 
@@ -43,10 +46,10 @@ def register_face(user_uuid, camera:Camera, detector:FaceDetector, recognizer:Fa
         print(f"Success: UUID={user_uuid}")
 
 if __name__ == "__main__":
-    init_db()
+    init_qdrant()
     camera = Camera(0, 640, 480)
     detector = FaceDetector()
-    recognizer = FaceRecognition("models/face_recognition.onnx")
+    recognizer = FaceRecognition()
 
     user_uuid = str(uuid.uuid4())
     register_face(user_uuid, camera, detector, recognizer)

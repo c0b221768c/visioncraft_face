@@ -1,21 +1,11 @@
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
-QDRANT_HOST = "localhost"  # Qdrant のホスト (Docker なら localhost)
-QDRANT_PORT = 6333  # ポート番号
+QDRANT_HOST = "localhost"
+QDRANT_PORT = 6333
 COLLECTION_NAME = "face_features"
 
 client = QdrantClient(QDRANT_HOST, port=QDRANT_PORT)
-
-
-def init_db():
-    """Qdrant にコレクションを作成"""
-    client.recreate_collection(
-        collection_name=COLLECTION_NAME,
-        vectors_config=VectorParams(
-            size=512, distance=Distance.COSINE
-        ),  # ONNX出力の特徴ベクトルサイズ
-    )
 
 
 def save_feature(user_uuid, feature):
