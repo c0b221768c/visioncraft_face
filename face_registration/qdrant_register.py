@@ -11,7 +11,7 @@ import numpy as np
 from common.camera import Camera
 from common.detection import FaceDetector
 from common.recognition import FaceRecognition
-from common.qdrant_utils import save_feature
+from common.utils import save_feature
 from initDB import init_qdrant_collection  # ここを修正
 
 

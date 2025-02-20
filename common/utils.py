@@ -1,5 +1,6 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import PointStruct
+import uuid
 
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
@@ -27,3 +28,16 @@ def search_feature(feature, top_k=1):
         best_match = search_results[0]
         return best_match.payload["uuid"], best_match.score
     return "Unknown", 0.0
+
+def is_uuid(value: str) -> bool:
+    """
+    指定された文字列がUUID4であるかを判別する関数
+
+    :param value: 判定する文字列
+    :return: UUID4であればTrue、そうでなければFalse
+    """
+    try:
+        uuid_obj = uuid.UUID(value, version=4)
+        return str(uuid_obj) == value
+    except ValueError:
+        return False

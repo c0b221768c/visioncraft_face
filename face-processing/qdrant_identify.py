@@ -5,7 +5,7 @@ from collections import Counter, deque
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from common.camera import Camera
 from common.detection import FaceDetector
-from common.qdrant_utils import search_feature
+from common.utils import search_feature
 from common.recognition import FaceRecognition
 from api.sender import Sender
 

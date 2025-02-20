@@ -5,24 +5,32 @@ from collections import Counter, deque
 import cv2  # GUI表示用
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from common.camera import Camera
 from common.detection import FaceDetector
-from common.qdrant_utils import search_feature
+from common.utils import search_feature, is_uuid
 from common.recognition import FaceRecognition
+from api.sender import SenderTCP
 
 THRESHOLD = 0.6
 BUFFER_SIZE = 10
+FRAME_SKIP = 5  # 5フレームごとに処理を実行
 
-
-def identify(camera: Camera, detector: FaceDetector, recognizer: FaceRecognition):
+def identify(sender: SenderTCP, camera: Camera, detector: FaceDetector, recognizer: FaceRecognition):
     print("O : Start")
 
     id_buffer = deque(maxlen=BUFFER_SIZE)
+    last_sent_id = None  # 前回送信したUUIDを記録
+    frame_count = 0  # フレームカウント
 
     while True:
         frame = camera.get_frame()
         if frame is None:
             continue
+
+        frame_count += 1
+        if frame_count % FRAME_SKIP != 0:
+            continue  # 設定したフレーム間隔でのみ処理
 
         faces = detector.detect_face(frame)
         if not faces:
@@ -63,6 +71,12 @@ def identify(camera: Camera, detector: FaceDetector, recognizer: FaceRecognition
             else:
                 final_id = "uncertain"
 
+            # 以前送信したIDと異なる場合のみ送信
+            if is_uuid(final_id) and final_id != last_sent_id:
+                sender.send_request(machine_id=0, uuid=final_id)
+                last_sent_id = final_id  # 最後に送信したIDを更新
+                print(f"✅ Sent ID: {final_id}")
+
             print(f"Success: {final_id} ({count}/{BUFFER_SIZE})")
 
         # ======= GUI表示追加 =======
@@ -82,5 +96,6 @@ if __name__ == "__main__":
     camera = Camera(0, 640, 480)
     detector = FaceDetector()
     recognizer = FaceRecognition("models/face_recognition.onnx")
+    sender = SenderTCP("172.16.103.17", 8080)
 
-    identify(camera, detector, recognizer)
+    identify(sender, camera, detector, recognizer)
