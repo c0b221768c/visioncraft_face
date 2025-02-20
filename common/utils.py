@@ -1,12 +1,20 @@
+import signal
+import uuid
+
+# `KeyboardInterrupt` を無視する（インポート中に Ctrl + C を無視）
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
-import uuid
 
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
 COLLECTION_NAME = "face_features"
 
 client = QdrantClient(QDRANT_HOST, port=QDRANT_PORT)
+
+# `KeyboardInterrupt` を再度有効化
+signal.signal(signal.SIGINT, signal.default_int_handler)
 
 
 def save_feature(user_uuid, feature):
@@ -29,15 +37,11 @@ def search_feature(feature, top_k=1):
         return best_match.payload["uuid"], best_match.score
     return "Unknown", 0.0
 
-def is_uuid(value: str) -> bool:
-    """
-    指定された文字列がUUID4であるかを判別する関数
 
-    :param value: 判定する文字列
-    :return: UUID4であればTrue、そうでなければFalse
-    """
+def is_uuid(value):
+    """値がUUID形式かどうかを判定"""
     try:
-        uuid_obj = uuid.UUID(value, version=4)
-        return str(uuid_obj) == value
+        uuid.UUID(value)
+        return True
     except ValueError:
         return False

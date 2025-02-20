@@ -1,9 +1,14 @@
-from api.sender import SenderTCP
+from common.camera import Camera
+import cv2
 
-import uuid
+camera= Camera(0, 640, 480)
 
-uudis = str(uuid.uuid4())
+while True:
+    frame = camera.get_frame()
+    cv2.imshow('T',frame)
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
 
-sender = SenderTCP("172.16.103.17", 8080)
 
-sender.send_request(machine_id=0, uuid=0)
+camera.release()
+cv2.destroyAllWindows()
