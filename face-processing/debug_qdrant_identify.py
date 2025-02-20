@@ -1,39 +1,54 @@
 import os
-import sys
-import cv2
-import time
-import threading
 import queue
-from collections import Counter, deque
 import signal
+import sys
+import threading
+import time
+from collections import Counter, deque
+
+import cv2
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from api.sender import SenderTCP
 from common.camera import Camera
 from common.detection import FaceDetector
-from common.utils import search_feature, is_uuid
 from common.recognition import FaceRecognition
-from api.sender import SenderTCP
+from common.utils import is_uuid, search_feature
 
 THRESHOLD = 0.6
 BUFFER_SIZE = 10
-FRAME_SKIP = 10  # 5フレームごとに処理を実行
+FRAME_SKIP = 5  # 5フレームごとに処理を実行
+TIMEOUT = 5  # 5秒間認識がなかったらリセット
 
 # GUI表示用のフレームを保存するキュー（各カメラ用）
 frame_queues = {i: queue.Queue(maxsize=1) for i in range(4)}
+
+# グローバル変数（スレッド間で共有）
+active_camera_id = None  # 現在アクティブなカメラ
+active_uuid = None  # 現在認識されているユーザー
+last_detected_time = None  # 最後に認識された時間
+lock = threading.Lock()  # スレッド間の排他制御用ロック
 
 # 停止イベント（`Ctrl + C` を検出してすべてのスレッドを終了する）
 stop_event = threading.Event()
 
 
-def identify(sender: SenderTCP, camera: Camera, detector: FaceDetector, recognizer: FaceRecognition, machine_id: int):
+def identify(
+    sender: SenderTCP,
+    camera: Camera,
+    detector: FaceDetector,
+    recognizer: FaceRecognition,
+    machine_id: int,
+):
     """
     各カメラ（machine_idごと）に識別処理を実行
     """
+    global active_camera_id, active_uuid, last_detected_time
+
     print(f"🎥 Camera {machine_id} Started")
 
     id_buffer = deque(maxlen=BUFFER_SIZE)
-    last_sent_id = None  # 各カメラごとに送信済みのIDを管理
     frame_count = 0  # フレームカウント
 
     while not stop_event.is_set():
@@ -47,8 +62,8 @@ def identify(sender: SenderTCP, camera: Camera, detector: FaceDetector, recogniz
 
         faces = detector.detect_face(frame)
         if not faces:
-            frame_queues[machine_id].queue.clear()  # キューをクリア
-            frame_queues[machine_id].put(frame)  # GUI用に送信
+            frame_queues[machine_id].queue.clear()
+            frame_queues[machine_id].put(frame)
             continue
 
         x1, y1, x2, y2 = faces[0]
@@ -71,27 +86,55 @@ def identify(sender: SenderTCP, camera: Camera, detector: FaceDetector, recogniz
 
         id_buffer.append(best_match_uuid)
 
-        if len(id_buffer) == BUFFER_SIZE:
-            most_common_id, count = Counter(id_buffer).most_common(1)[0]
-            if count >= BUFFER_SIZE * 0.7:
-                final_id = most_common_id
-            else:
-                final_id = "uncertain"
+        with lock:
+            current_time = time.time()
 
-            if is_uuid(final_id) and final_id != last_sent_id:
-                sender.send_request(machine_id=machine_id, uuid=final_id)
-                last_sent_id = final_id  # 最後に送信したIDを更新
-                print(f"✅ Sent from Camera {machine_id}: {final_id}")
+            if len(id_buffer) == BUFFER_SIZE:
+                most_common_id, count = Counter(id_buffer).most_common(1)[0]
+                if count >= BUFFER_SIZE * 0.7:
+                    detected_uuid = most_common_id
+                else:
+                    detected_uuid = "uncertain"
+
+                # **送信条件の判定**
+                if detected_uuid is not None and is_uuid(detected_uuid):
+                    if active_uuid is None:
+                        # **初回認識**
+                        active_uuid = detected_uuid
+                        active_camera_id = machine_id
+                        last_detected_time = current_time
+                        sender.send_request(machine_id=machine_id, uuid=detected_uuid)
+                        print(f"✅ Sent from Camera {machine_id}: {detected_uuid}")
+
+                    elif (
+                        active_uuid == detected_uuid and active_camera_id != machine_id
+                    ):
+                        # **既存ユーザーがカメラを移動**
+                        active_camera_id = machine_id
+                        last_detected_time = current_time
+                        sender.send_request(machine_id=machine_id, uuid=detected_uuid)
+                        print(f"✅ Sent from Camera {machine_id}: {detected_uuid}")
+
+                # **一定時間経過でリセット**
+                if (
+                    active_uuid is not None
+                    and current_time - last_detected_time > TIMEOUT
+                ):
+                    print("🕒 Timeout: Reset active user")
+                    active_uuid = None
+                    active_camera_id = None
 
         # フレームをGUI用のキューに送信
         label = f"ID: {best_match_uuid} (Sim: {best_match_sim:.2f})"
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(
+            frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
+        )
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         frame_queues[machine_id].queue.clear()
         frame_queues[machine_id].put(frame)
 
-        time.sleep(0.1)  # CPU負荷を抑えるための短いスリープ
+        time.sleep(0.1)
 
 
 def display_gui():
@@ -118,38 +161,34 @@ def signal_handler(sig, frame):
     stop_event.set()
 
 
-# ================================================================
-# 🎯 **マルチスレッドで4台のカメラを同時に動作させる**
-# ================================================================
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal_handler)  # `Ctrl + C` をキャッチ
+    signal.signal(signal.SIGINT, signal_handler)
 
-    CAMERA01 = Camera(0, 640, 480)
-    CAMERA02 = Camera(1, 640, 480)
-    # CAMERA03 = Camera(2, 640, 480)
-    # CAMERA04 = Camera(3, 640, 480)
-    # cameras = [CAMERA01]
-    cameras = [CAMERA01, CAMERA02]
-    # cameras = [CAMERA01, CAMERA02, CAMERA03]
-    # cameras = [CAMERA01, CAMERA02, CAMERA03, CAMERA04]
+    cameras = [
+        Camera(0, 640, 480),
+        Camera(1, 640, 480),
+        Camera(2, 640, 480),
+        Camera(3, 640, 480),
+    ]
 
-    sender = SenderTCP("172.27.112.1", 8080)
+    sender = SenderTCP("172.16.103.17", 8080)
     detector = FaceDetector()
     recognizer = FaceRecognition("models/face_recognition.onnx")
 
     threads = []
 
-    # 識別スレッドを開始
     for machine_id, cam in enumerate(cameras):
-        thread = threading.Thread(target=identify, args=(sender, cam, detector, recognizer, machine_id), daemon=True)
+        thread = threading.Thread(
+            target=identify,
+            args=(sender, cam, detector, recognizer, machine_id),
+            daemon=True,
+        )
         thread.start()
         threads.append(thread)
 
-    # GUIスレッドを開始
     gui_thread = threading.Thread(target=display_gui, daemon=True)
     gui_thread.start()
 
-    # すべてのスレッドが終了するまで待機
     try:
         for thread in threads:
             thread.join()
