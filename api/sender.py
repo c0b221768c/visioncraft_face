@@ -1,9 +1,11 @@
 import json
 import socket
 
+from common.config import config
+
 
 class SenderTCP:
-    def __init__(self, server_ip: str, server_port: int, buffer_size: int = 4096):
+    def __init__(self):
         """
         TCPクライアントを初期化
 
@@ -11,9 +13,9 @@ class SenderTCP:
         :param server_port: サーバーのポート番号
         :param buffer_size: 受信バッファサイズ（デフォルト4096）
         """
-        self.server_ip = server_ip
-        self.server_port = server_port
-        self.buffer_size = buffer_size
+        self.server_ip = config.SERVER_IP
+        self.server_port = config.SERVER_PORT
+        self.buffer_size = config.BUFFER_SIZE
 
     def send_request(self, uuid: str, machine_id: int):
         """
@@ -26,7 +28,12 @@ class SenderTCP:
         if not (0 <= machine_id <= 3):
             raise ValueError("machine_id は 0~3 の範囲で指定してください。")
 
-        data = {"actor": "player", "type": "attract", "machine_id": machine_id, "user_id":uuid}
+        data = {
+            "actor": "player",
+            "type": "attract",
+            "machine_id": machine_id,
+            "user_id": uuid,
+        }
 
         # JSONデータをエンコード
         send_str = json.dumps(data, separators=(",", ":"))

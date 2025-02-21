@@ -1,7 +1,8 @@
 # gui.py
 
 import cv2
-from config import NUM_CAMERAS
+
+from common.config import config
 
 
 def display_gui(frame_queues, stop_event):
@@ -10,7 +11,7 @@ def display_gui(frame_queues, stop_event):
     """
     try:
         while not stop_event.is_set():
-            for machine_id in range(NUM_CAMERAS):
+            for machine_id in range(config.NUM_CAMERAS):
                 if not frame_queues[machine_id].empty():
                     frame = frame_queues[machine_id].get()
                     if frame is not None:

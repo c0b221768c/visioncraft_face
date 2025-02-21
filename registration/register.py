@@ -8,12 +8,10 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from common.camera import Camera
+from common.config import config  # 設定をインポート
 from common.detection import FaceDetector
 from common.recognition import FaceRecognition
 from common.utils import save_feature
-
-# 設定値
-NUM_FEATURES = 30  # 登録に必要な特徴量の数
 
 
 def collect_face_features(
@@ -48,9 +46,11 @@ def collect_face_features(
 
         if feature is not None:
             collected_features.append(feature)
-            print(f"✅ 登録中... {len(collected_features)}/{NUM_FEATURES} 特徴量収集中")
+            print(
+                f"✅ 登録中... {len(collected_features)}/{config.NUM_FEATURES} 特徴量収集中"
+            )
 
-        if len(collected_features) >= NUM_FEATURES:
+        if len(collected_features) >= config.NUM_FEATURES:
             break
 
     camera.release()
@@ -83,9 +83,13 @@ def register_face(
 
 
 if __name__ == "__main__":
-    camera = Camera(0, 640, 480)
+    camera = Camera(
+        config.CAMERA_INDEX_FOR_RECOGNITION, config.FRAME_WIDTH, config.FRAME_HEIGHT
+    )  # 設定からカメラ設定を取得
     detector = FaceDetector()
-    recognizer = FaceRecognition("models/face_recognition.onnx")
+    recognizer = FaceRecognition(
+        config.FACE_MODEL_PATH, device=config.DEVICE
+    )  # モデルパスとデバイス設定を適用
 
     user_uuid = str(uuid.uuid4())
     register_face(user_uuid, camera, detector, recognizer)

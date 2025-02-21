@@ -1,19 +1,18 @@
 import cv2
 import numpy as np
 import onnxruntime as ort
+from config import config
 
 
 class FaceRecognition:
-    def __init__(
-        self, model_path, device="cuda" if ort.get_device() == "GPU" else "cpu"
-    ):
+    def __init__(self, model_path):
         """
         顔認識モデルを初期化する
 
         :param model_path: ONNXモデルのパス
         :param device: 使用するデバイス ('cuda' or 'cpu')
         """
-        self.device = device
+        self.device = config.DEVICE
         providers = (
             ["CUDAExecutionProvider"]
             if self.device == "cuda"

@@ -1,10 +1,10 @@
-import torch
+from config import config
 from insightface.app import FaceAnalysis
 
 
 class FaceDetector:
-    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
-        self.device = device
+    def __init__(self):
+        self.device = config.DEVICE
         self.app = FaceAnalysis(
             name="buffalo_l",
             providers=["CUDAExecutionProvider"]

@@ -1,12 +1,11 @@
 import time
 
 import cv2
+from config import config
 
 
 class Camera:
-    def __init__(
-        self, camera_index=0, width=640, height=480, retries=3, retry_delay=1.0
-    ):
+    def __init__(self, camera_index=0, retries=3, retry_delay=1.0):
         """
         カメラクラス
 
@@ -16,9 +15,9 @@ class Camera:
         :param retries: カメラ接続のリトライ回数
         :param retry_delay: リトライ間隔（秒）
         """
+        self.width = config.FRAME_WIDTH
+        self.height = config.FRAME_HEIGHT
         self.camera_index = camera_index
-        self.width = width
-        self.height = height
         self.retries = retries
         self.retry_delay = retry_delay
         self.cap = None

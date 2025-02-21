@@ -5,8 +5,8 @@ import time
 from collections import Counter, deque
 
 import cv2
-from config import BUFFER_SIZE, FRAME_SKIP, THRESHOLD, TIMEOUT
 
+from common.config import config
 from common.utils import is_uuid, search_feature
 
 lock = threading.Lock()  # スレッド間の排他制御用ロック
@@ -27,7 +27,7 @@ def identify(
 
     print(f"🎥 Camera {machine_id} Started | Send Data: {send_data}")
 
-    id_buffer = deque(maxlen=BUFFER_SIZE)
+    id_buffer = deque(maxlen=config.BUFFER_SIZE)
     frame_count = 0  # フレームカウント
 
     while True:
@@ -36,7 +36,7 @@ def identify(
             continue
 
         frame_count += 1
-        if frame_count % FRAME_SKIP != 0:
+        if frame_count % config.FRAME_SKIP != 0:
             continue  # 設定したフレーム間隔でのみ処理
 
         faces = detector.detect_face(frame)
@@ -61,7 +61,7 @@ def identify(
         # Qdrant に問い合わせて検索
         best_match_uuid, best_match_sim = search_feature(feature)
 
-        if best_match_sim < THRESHOLD:
+        if best_match_sim < config.THRESHOLD:
             best_match_uuid = "Unknown"
 
         id_buffer.append(best_match_uuid)
@@ -69,10 +69,10 @@ def identify(
         with lock:
             current_time = time.time()
 
-            if len(id_buffer) == BUFFER_SIZE:
+            if len(id_buffer) == config.BUFFER_SIZE:
                 most_common_id, count = Counter(id_buffer).most_common(1)[0]
                 detected_uuid = (
-                    most_common_id if count >= BUFFER_SIZE * 0.7 else "uncertain"
+                    most_common_id if count >= config.BUFFER_SIZE * 0.7 else "uncertain"
                 )
 
                 # **UUID検出ログ**
@@ -90,7 +90,7 @@ def identify(
                         print(f"✅ Sent from Camera {machine_id}: {detected_uuid}")
 
                 # **一定時間経過でリセット**
-                if active_uuid and current_time - last_detected_time > TIMEOUT:
+                if active_uuid and current_time - last_detected_time > config.TIMEOUT:
                     print("🕒 Timeout: Reset active user")
                     active_uuid = None
                     active_camera_id = None
