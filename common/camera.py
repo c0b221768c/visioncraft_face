@@ -1,7 +1,8 @@
 import time
 
 import cv2
-from config import config
+
+from common.config import config
 
 
 class Camera:

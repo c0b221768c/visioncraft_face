@@ -42,8 +42,8 @@ class Config:
     NUM_FEATURES = int(os.getenv("NUM_FEATURES", 10))
 
     MIN_FACE_SIZE = int(os.getenv("MIN_FACE_SIZE", 10000))
-    TIMEOUT_DURATION = int(os.getenv("TIMEOUT_FACE_SIZE", 3))
-    
+    TIMEOUT_DURATION = int(os.getenv("TIMEOUT_FACE_SIZE", 10))
+    FACE_PERSIST_DURATION = int(os.getenv("FACE_PERSIST_DURATION", 3))
 
 
 config = Config()

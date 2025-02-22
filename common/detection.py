@@ -1,5 +1,6 @@
-from config import config
 from insightface.app import FaceAnalysis
+
+from common.config import config
 
 
 class FaceDetector:

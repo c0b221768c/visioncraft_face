@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import onnxruntime as ort
-from config import config
+
+from common.config import config
 
 
 class FaceRecognition:
