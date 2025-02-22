@@ -1,77 +1,76 @@
-import threading
 import time
+import cv2
 
+from api.sender import SenderTCP
+from common.camera import Camera
 from common.config import config
+from common.detection import FaceDetector
 
-lock = threading.Lock()
-
-active_camera_id = None  # 現在アクティブなカメラ
-active_user_id = None  # 現在認識されているユーザー
-last_detected_time = None  # 最後に認識された時間
+# 設定
 timeout_active = False  # タイムアウト状態
 timeout_start_time = None  # タイムアウト開始時刻
-face_persist_time = {}  # 各カメラごとの継続時間記録
+face_persist_time = None  # 顔が認識された開始時刻
+running = True  # プログラムの実行フラグ
 
+# 初期化
+sender = SenderTCP()
+camera = Camera(0)  # カメラ1台のみ
+detector = FaceDetector()
 
-def identify(sender, camera, detector, machine_id, frame_queues=None, send_data=True):
-    global \
-        active_camera_id, \
-        active_user_id, \
-        last_detected_time, \
-        timeout_active, \
-        timeout_start_time
+print("🎥 Camera started | Press 'ESC' to exit")
 
-    print(f"🎥 Camera {machine_id} Started | Send Data: {send_data}")
+while running:
+    frame = camera.get_frame()
+    if frame is None:
+        continue
 
-    while True:
-        frame = camera.get_frame()
-        if frame is None:
-            continue
+    current_time = time.time()
 
-        face = detector.detect_face(frame)
-        if not face:
-            if frame_queues:
-                frame_queues[machine_id].queue.clear()
-                frame_queues[machine_id].put(frame)
-            continue
+    # 顔検出
+    face = detector.detect_face(frame)
+    if not face:
+        print("⚠️ No face detected.")
+        cv2.imshow("Camera", frame)
+        if cv2.waitKey(1) & 0xFF == 27:
+            running = False
+        continue
 
-        x1, y1, x2, y2 = face
+    # 顔のサイズ計算
+    x1, y1, x2, y2 = face
+    face_size = (x2 - x1) * (y2 - y1)
+    detected_long_enough = False
 
-        face_size = (x2 - x1) * (y2 - y1)  # 顔のサイズ計算
-        current_time = time.time()
+    # 顔が一定サイズを超えたか
+    if face_size > config.MIN_FACE_SIZE:
+        if face_persist_time is None:
+            face_persist_time = current_time  # 初回検出時刻を記録
+        elif current_time - face_persist_time >= config.FACE_PERSIST_DURATION:
+            detected_long_enough = True
+    else:
+        face_persist_time = None  # 小さくなったらリセット
 
-        with lock:
-            if face_size > config.MIN_FACE_SIZE:
-                # 継続時間を記録
-                if machine_id not in face_persist_time:
-                    face_persist_time[machine_id] = current_time
-                elif (
-                    current_time - face_persist_time[machine_id]
-                    >= config.FACE_PERSIST_DURATION
-                ):
-                    detected_long_enough = True
-                else:
-                    detected_long_enough = False
-            else:
-                # 顔が小さくなった場合は継続時間リセット
-                face_persist_time[machine_id] = None
-                detected_long_enough = False
+    # データ送信のタイミング
+    if not timeout_active and face_size > config.MIN_FACE_SIZE and detected_long_enough:
+        sender.send_request("dummy_uuid", 0)
+        print(f"📡 Data sent for User at {time.strftime('%H:%M:%S')}")
+        timeout_active = True
+        timeout_start_time = current_time
 
-            # タイムアウトチェック
-            if timeout_active:
-                if current_time - timeout_start_time >= config.TIMEOUT_DURATION:
-                    timeout_active = False  # タイムアウト解除
-                else:
-                    print(f"⏳ Timeout active for Camera {machine_id}, skipping...")
-                    continue  # 送信せずスキップ
+    # タイムアウト解除
+    if timeout_active and current_time - timeout_start_time >= config.TIMEOUT_DURATION:
+        timeout_active = False  # タイムアウト解除
 
-            # 送信条件 (顔サイズが一定以上 & N秒継続)
-            if face_size > config.MIN_FACE_SIZE and detected_long_enough:
-                active_camera_id = machine_id
-                user_uuid = "dummy_uuid"  # 実際には認識処理を実装
-                sender.send_request(user_uuid, machine_id)
-                print(f"📡 Data sent for User {user_uuid} from Camera {machine_id}")
+    # 顔を枠で囲む
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    text = f"Face Size: {face_size}"
+    cv2.putText(frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-                # タイムアウト開始
-                timeout_active = True
-                timeout_start_time = current_time
+    # 映像を表示
+    cv2.imshow("Camera", frame)
+    if cv2.waitKey(1) & 0xFF == 27:
+        running = False
+
+# 終了処理
+camera.release()
+cv2.destroyAllWindows()
+print("✅ Program terminated successfully.")

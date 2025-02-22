@@ -41,5 +41,9 @@ class Config:
     CAMERA_INDEX_FOR_RECOGNITION = int(os.getenv("CAMERA_INDEX", 0))
     NUM_FEATURES = int(os.getenv("NUM_FEATURES", 10))
 
+    MIN_FACE_SIZE = int(os.getenv("MIN_FACE_SIZE", 10000))
+    TIMEOUT_DURATION = int(os.getenv("TIMEOUT_FACE_SIZE", 3))
+    
+
 
 config = Config()
