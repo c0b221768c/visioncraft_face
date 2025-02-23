@@ -17,7 +17,7 @@ class SenderTCP:
         self.server_port = config.SERVER_PORT
         self.buffer_size = config.BUFFER_SIZE
 
-    def send_request(self, uuid: str, machine_id: int):
+    def send_request(self,type:str, uuid: str, machine_id: int):
         """
         サーバーにUUIDとmachine_idを送信する
 
@@ -28,12 +28,18 @@ class SenderTCP:
         if not (0 <= machine_id <= 3):
             raise ValueError("machine_id は 0~3 の範囲で指定してください。")
 
-        data = {
-            "actor": "player",
-            "type": "attract",
-            "machine_id": machine_id,
-            "user_id": uuid,
-        }
+        if type == "attract":
+            data = {
+                "actor": "player",
+                "type": type,
+                "machine_id": machine_id,
+                "user_id": uuid,
+            }
+        elif type=="leave":
+            data = {
+                "actor" : "player",
+                "type" : type
+            }
 
         # JSONデータをエンコード
         send_str = json.dumps(data, separators=(",", ":"))
