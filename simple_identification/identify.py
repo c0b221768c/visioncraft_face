@@ -1,5 +1,4 @@
 import time
-
 import cv2
 
 from api.sender import SenderTCP
@@ -7,94 +6,108 @@ from common.camera import Camera
 from common.config import config
 from common.detection import FaceDetector
 
-# 設定
-timeout_active = False  # タイムアウト状態
-timeout_start_time = None  # タイムアウト開始時刻
-face_persist_time = None  # 顔が認識された開始時刻
-running = True  # プログラムの実行フラグ
-first_sended = False  # 初回送信フラグ
+
+class UserState:
+    """ユーザーの状態を管理"""
+    def __init__(self):
+        self.present = False  # ユーザーがカメラ範囲内にいるか
+        self.first_sended = False  # 最初のデータ送信が済んだか
+        self.timeout_active = False  # タイムアウトが有効か
+        self.timeout_start_time = None  # タイムアウト開始時刻
+        self.face_persist_time = None  # ユーザーが認識された開始時刻
 
 
-def get_elapsed_time(face_size, current_time):
-    """
-    顔の継続時間を計算する
-    """
-    global face_persist_time
+def get_face_elapsed_time(face_size, current_time, user_state):
+    """ ユーザーが検出され続けている時間を計測 """
     if face_size > config.MIN_FACE_SIZE:
-        if face_persist_time is None:
-            face_persist_time = current_time
+        if user_state.face_persist_time is None:
+            user_state.face_persist_time = current_time
             return 0.0  # 初回検出
         else:
-            elapsed_time = current_time - face_persist_time
-            return round(elapsed_time, 1)  # 小数点1桁まで丸める
+            elapsed = current_time - user_state.face_persist_time
+            return min(round(elapsed, 1), config.FACE_PERSIST_DURATION)  # しきい値以上は固定
     else:
-        face_persist_time = None  # 顔が小さくなったらリセット
-        return 0.0
+        user_state.face_persist_time = None
+        return 0.0  # 顔が小さくなったらリセット
+
+
+def update_user_presence(elapsed_time, user_state, sender):
+    """ ユーザーの状態を更新し、初回データ送信を行う """
+    if elapsed_time >= config.FACE_PERSIST_DURATION and not user_state.present:
+        print("👤 User presence confirmed.")
+        user_state.present = True  # ユーザーがいると記録
+        sender.send_request("hello", 1)  # 滞在開始時に "hello" を送信
+        print("📡 Data sent: 'hello'")
+
+    if user_state.present and not user_state.first_sended:
+        user_state.first_sended = True  # 初回送信済みに設定
+
+
+def handle_timeout(user_state, current_time, sender):
+    """ ユーザーの一時的な消失を処理し、完全に離れたかを判定 """
+    if user_state.present and not user_state.timeout_active:
+        user_state.timeout_active = True
+        user_state.timeout_start_time = current_time
+        print("⏳ User temporarily disappeared, starting timeout...")
+
+    if user_state.timeout_active and current_time - user_state.timeout_start_time >= config.TIMEOUT_DURATION:
+        print("❌ User left the area.")
+        user_state.present = False
+        user_state.timeout_active = False
+        user_state.first_sended = False  # ユーザーが離れたら初回送信フラグをリセット
+        sender.send_request("goodbye", 1)  # 離脱時に "goodbye" を送信
+        print("📡 Data sent: 'goodbye'")
+
+
+def detect_face(frame, detector, user_state, sender, current_time):
+    """ 顔を検出し、ユーザーの滞在状況を判定 """
+    face = detector.detect_face(frame)
+    if not face:
+        if user_state.present:
+            handle_timeout(user_state, current_time, sender)
+        return None, None
+
+    if user_state.timeout_active:
+        print("✅ User returned before timeout ended.")
+        user_state.timeout_active = False
+
+    x1, y1, x2, y2 = face
+    face_size = (x2 - x1) * (y2 - y1)
+    elapsed_time = get_face_elapsed_time(face_size, current_time, user_state)
+
+    update_user_presence(elapsed_time, user_state, sender)
+
+    return face, face_size
 
 
 # 初期化
 sender = SenderTCP()
 camera = Camera(0)  # カメラ1台のみ
 detector = FaceDetector()
+user_state = UserState()  # ユーザー状態管理
 
 print("🎥 Camera started | Press 'ESC' to exit")
 
-while running:
+while True:
     frame = camera.get_frame()
     if frame is None:
         continue
 
     current_time = time.time()  # ループ内で変動しないようにする
 
-    # 顔検出
-    face = detector.detect_face(frame)
-    if not face:
-        face_persist_time = None  # 顔が見えなくなったらリセット
-        cv2.imshow("Camera", frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            running = False
-        continue
+    face, face_size = detect_face(frame, detector, user_state, sender, current_time)
 
-    # 顔のサイズ計算
-    x1, y1, x2, y2 = face
-    face_size = (x2 - x1) * (y2 - y1)
+    if face is not None:
+        x1, y1, x2, y2 = face
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        text = f"Face Size: {face_size} | Elapsed: {user_state.face_persist_time:.1f} sec"
+        cv2.putText(
+            frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2
+        )
 
-    elapsed_time = get_elapsed_time(face_size, current_time)
-
-    print(f"Elapsed Time: {elapsed_time} sec")  # デバッグ用ログ
-
-    if elapsed_time >= config.FACE_PERSIST_DURATION:
-        if not first_sended:
-            sender.send_request("dummy_uuid", 1)
-            print("📡 Data sent for User")
-            first_sended = True
-
-    # # データ送信のタイミング
-    # if (
-    #     not timeout_active
-    #     and face_size > config.MIN_FACE_SIZE
-    #     and elapsed_time >= config.FACE_PERSIST_DURATION
-    # ):
-    #     sender.send_request("dummy_uuid", 1)
-    #     print(f"📡 Data sent for User at {time.strftime('%H:%M:%S')}")
-    #     timeout_active = True
-    #     timeout_start_time = current_time
-
-    # タイムアウト解除
-    if timeout_active and current_time - timeout_start_time >= config.TIMEOUT_DURATION:
-        timeout_active = False  # タイムアウト解除
-
-    # 顔を枠で囲む
-    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    text = f"Face Size: {face_size}"
-    cv2.putText(
-        frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2
-    )
-
-    # 映像を表示
     cv2.imshow("Camera", frame)
     if cv2.waitKey(1) & 0xFF == 27:
-        running = False
+        break
 
 # 終了処理
 camera.release()
