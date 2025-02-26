@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from distutils.util import strtobool
 
 from dotenv import load_dotenv
 
@@ -44,6 +45,8 @@ class Config:
     MIN_FACE_SIZE = int(os.getenv("MIN_FACE_SIZE", 10000))
     TIMEOUT_DURATION = int(os.getenv("TIMEOUT_FACE_SIZE", 10))
     FACE_PERSIST_DURATION = int(os.getenv("FACE_PERSIST_DURATION", 3))
+
+    GAME_STATUS = bool(strtobool(os.getenv("GAME_STATUS", "False")))
 
 
 config = Config()
