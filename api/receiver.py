@@ -61,10 +61,10 @@ class ReceiverTCP:
         """ 受信したゲームの状態に応じて .env ファイルを書き換える """
         if is_game_active is True:
             print("[+] ゲームが開始されました！")
-            self.update_env("GAME_STATUS", True)  # ゲーム開始
+            self.update_env("GAME_STATUS", "ACTIVE")  # ゲーム開始
         elif is_game_active is False:
             print("[-] ゲームが終了しました。")
-            self.update_env("GAME_STATUS", False)  # ゲーム終了
+            self.update_env("GAME_STATUS", "INACTIVE")  # ゲーム終了
         else:
             print("[!] 受信データが正しくありません。")
 

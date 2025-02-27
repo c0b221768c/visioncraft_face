@@ -1,7 +1,7 @@
 import json
 import socket
 
-from common.config import config
+from config import config
 
 
 class SenderTCP:
