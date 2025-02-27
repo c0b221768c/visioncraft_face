@@ -5,6 +5,7 @@ from api.sender import SenderTCP
 from common.camera import Camera
 from common.config import config
 from common.detection import FaceDetector
+import multiprocessing
 
 
 class UserState:
