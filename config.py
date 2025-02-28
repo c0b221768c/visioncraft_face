@@ -20,7 +20,7 @@ class Config:
     BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", 4096))
 
     # Identification settings
-    FACE_SIZE_THRESHOLD = int(os.getenv("FACE_SIZE_THRESHOLD", 10000))
-    FACE_PERSIST_THRESHOLD = int(os.getenv("FACE_PERSIST_THRESHOLD", 3)) # seconds
+    FACE_SIZE_THRESHOLD = int(os.getenv("FACE_SIZE_THRESHOLD", 11000))
+    FACE_PERSIST_THRESHOLD = int(os.getenv("FACE_PERSIST_THRESHOLD", 1.5)) # seconds
 
 config = Config()
