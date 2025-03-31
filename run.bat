@@ -10,3 +10,5 @@ echo Opening Windows Terminal with multiple tabs...
 
 wt new-tab -p "PowerShell" -d . --title "Camera00" cmd /k python ./src/identify00.py ^
     ; new-tab -p "PowerShell" -d . --title "Camera01" cmd /k python ./src/identify01.py ^
+    ; new-tab -p "PowerShell" -d . --title "Camera02" cmd /k python ./src/identify02.py ^
+    ; new-tab -p "PowerShell" -d . --title "Camera03" cmd /k python ./src/identify03.py ^

@@ -65,7 +65,7 @@ class FaceIdentification:
                 continue
 
             self.process_frame(frame)
-            cv2.imshow("Camera00", frame)
+            cv2.imshow("Camera02", frame)
 
             if cv2.waitKey(1) & 0xFF == 27:  # ESCキーで終了
                 break
@@ -76,5 +76,5 @@ class FaceIdentification:
 
 
 if __name__ == "__main__":
-    face_identifier = FaceIdentification(input_cindex=4, output_cindex=0)
+    face_identifier = FaceIdentification(input_cindex=5, output_cindex=2)
     face_identifier.run()
