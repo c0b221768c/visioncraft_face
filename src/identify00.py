@@ -76,5 +76,11 @@ class FaceIdentification:
 
 
 if __name__ == "__main__":
-    face_identifier = FaceIdentification(input_cindex=4, output_cindex=0)
-    face_identifier.run()
+    face_identifier0 = FaceIdentification(input_cindex=4, output_cindex=0)
+    face_identifier0.run()
+    face_identifier1 = FaceIdentification(input_cindex=2, output_cindex=1)
+    face_identifier1.run()
+    face_identifier2 = FaceIdentification(input_cindex=5, output_cindex=2)
+    face_identifier2.run()
+    face_identifier3 = FaceIdentification(input_cindex=3, output_cindex=3)
+    face_identifier3.run()
